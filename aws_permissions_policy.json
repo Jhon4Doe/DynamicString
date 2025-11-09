@@ -1,0 +1,96 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "CloudFormationAccess",
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:CreateStack",
+                "cloudformation:DeleteStack",
+                "cloudformation:DescribeStacks",
+                "cloudformation:ListStacks",
+                "cloudformation:GetTemplateSummary",
+                "cloudformation:ValidateTemplate",
+                "cloudformation:UpdateStack"
+            ],
+            "Resource": "arn:aws:cloudformation:*:<account-id>:stack/*/*"
+        },
+        {
+            "Sid": "IAMAccess",
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreateRole",
+                "iam:DeleteRole",
+                "iam:GetRole",
+                "iam:PutRolePolicy",
+                "iam:DeleteRolePolicy",
+                "iam:PassRole"
+            ],
+            "Resource": "arn:aws:iam::<account-id>:role/dynamic-html-DynamicStringLambdaRole"
+        },
+        {
+            "Sid": "LambdaAccess",
+            "Effect": "Allow",
+            "Action": [
+                "lambda:CreateFunction",
+                "lambda:DeleteFunction",
+                "lambda:GetFunction",
+                "lambda:AddPermission",
+                "lambda:RemovePermission",
+                "lambda:UpdateFunctionCode"
+            ],
+            "Resource": "arn:aws:lambda:*:<account-id>:function:*"
+        },
+        {
+            "Sid": "APIGatewayAccess",
+            "Effect": "Allow",
+            "Action": [
+                "apigateway:POST",
+                "apigateway:PUT",
+                "apigateway:GET",
+                "apigateway:DELETE"
+            ],
+            "Resource": [
+                "arn:aws:apigateway:*::/restapis",
+                "arn:aws:apigateway:*::/restapis/*"
+            ]
+        },
+        {
+            "Sid": "S3Access",
+            "Effect": "Allow",
+            "Action": [
+                "s3:CreateBucket",
+                "s3:DeleteBucket",
+                "s3:PutBucketPolicy",
+                "s3:DeleteBucketPolicy",
+                "s3:PutBucketWebsite",
+                "s3:PutBucketOwnershipControls",
+                "s3:PutBucketPublicAccessBlock"
+            ],
+            "Resource": [
+                "arn:aws:s3:::dynamicstringbucket",
+                "arn:aws:s3:::dynamicstringbucket/*"
+            ]
+        },
+        {
+            "Sid": "SSMAccess",
+            "Effect": "Allow",
+            "Action": [
+                "ssm:PutParameter",
+                "ssm:DeleteParameter",
+                "ssm:GetParameter"
+            ],
+            "Resource": "arn:aws:ssm:*:<account-id>:parameter/dynamic/string"
+        },
+        {
+            "Sid": "CloudWatchLogsAccess",
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:DeleteLogGroup",
+                "logs:PutRetentionPolicy"
+            ],
+            "Resource": "arn:aws:logs:*:<account-id>:log-group:/aws/lambda/DynamicStringLambda*"
+        }
+    ]
+}
