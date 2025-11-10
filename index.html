@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dynamic String</title>
+  <script>
+    async function fetchDynamicString() {
+      try {
+        // Replace this URL with the actual API Gateway endpoint after deployment
+        const apiUrl = 'https://<key-value>.execute-api.us-east-1.amazonaws.com/prod/value';
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+        document.getElementById('dynamic-string').textContent = data.value;
+      } catch (e) {
+        document.getElementById('dynamic-string').textContent = 'Error fetching value';
+      }
+    }
+    window.onload = fetchDynamicString;
+  </script>
+</head>
+<body>
+  <h1>The saved string is <span id="dynamic-string">dynamic string</span></h1>
+</body>
+</html>

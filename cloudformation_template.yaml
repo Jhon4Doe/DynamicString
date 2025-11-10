@@ -1,0 +1,215 @@
+
+
+
+
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  CloudFormation template to create a versioned SSM Parameter, a public S3 bucket with an HTML file, a Lambda function, and API Gateway to expose the parameter value.
+
+Parameters:
+  DynamicStringValue:
+    Type: String
+    Default: "dynamic string"
+    Description: The initial value for the dynamic string parameter.
+
+Resources:
+  DynamicStringParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /dynamic/string
+      Type: String
+      Value: !Ref DynamicStringValue
+      Description: Dynamic string value stored in SSM Parameter Store
+
+  DynamicStringBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: dynamicstringbucket
+      WebsiteConfiguration:
+        IndexDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
+
+  DynamicStringBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DynamicStringBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${DynamicStringBucket}/*"
+
+  DynamicStringLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: dynamic-html-DynamicStringLambdaRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SSMAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/dynamic/string
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+
+  DynamicStringLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt DynamicStringLambdaRole.Arn
+      Runtime: python3.11
+      Timeout: 10
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          def handler(event, context):
+              ssm = boto3.client('ssm')
+              try:
+                  if event['httpMethod'] == 'GET':
+                      data = ssm.get_parameter(Name='/dynamic/string')
+                      return {
+                          'statusCode': 200,
+                          'headers': { 'Access-Control-Allow-Origin': '*' },
+                          'body': json.dumps({ 'value': data['Parameter']['Value'] })
+                      }
+                  elif event['httpMethod'] == 'PUT':
+                      body = json.loads(event['body'])
+                      new_value = body['value']
+                      ssm.put_parameter(
+                          Name='/dynamic/string',
+                          Value=new_value,
+                          Type='String',
+                          Overwrite=True
+                      )
+                      return {
+                          'statusCode': 200,
+                          'headers': { 'Access-Control-Allow-Origin': '*' },
+                          'body': json.dumps({ 'message': 'Value updated successfully' })
+                      }
+                  else:
+                      return {
+                          'statusCode': 405,
+                          'headers': { 'Access-Control-Allow-Origin': '*' },
+                          'body': json.dumps({ 'error': 'Method not allowed' })
+                      }
+              except Exception as err:
+                  return {
+                      'statusCode': 500,
+                      'headers': { 'Access-Control-Allow-Origin': '*' },
+                      'body': json.dumps({ 'error': str(err) })
+                  }
+
+  DynamicStringApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: DynamicStringApi
+
+  DynamicStringApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt [DynamicStringApi, RootResourceId]
+      PathPart: value
+      RestApiId: !Ref DynamicStringApi
+
+  DynamicStringApiMethodGET:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: GET
+      ResourceId: !Ref DynamicStringApiResource
+      RestApiId: !Ref DynamicStringApi
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt DynamicStringLambda.Arn }
+
+  DynamicStringApiMethodPUT:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: PUT
+      ResourceId: !Ref DynamicStringApiResource
+      RestApiId: !Ref DynamicStringApi
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt DynamicStringLambda.Arn }
+      
+  DynamicStringApiMethodOPTIONS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref DynamicStringApiResource
+      RestApiId: !Ref DynamicStringApi
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,PUT,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  DynamicStringApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: 
+      - DynamicStringApiMethodGET
+      - DynamicStringApiMethodPUT
+      - DynamicStringApiMethodOPTIONS
+    Properties:
+      RestApiId: !Ref DynamicStringApi
+      StageName: prod
+
+  LambdaApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DynamicStringLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${DynamicStringApi}/*/*/value
+
+Outputs:
+  WebsiteURL:
+    Description: URL for website hosted on S3
+    Value: !GetAtt DynamicStringBucket.WebsiteURL
+  ApiEndpoint:
+    Description: API Gateway endpoint to get the dynamic string
+    Value: !Sub "https://${DynamicStringApi}.execute-api.${AWS::Region}.amazonaws.com/prod/value"
